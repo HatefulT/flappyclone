@@ -1,0 +1,201 @@
+
+<style>
+  * { margin: 0; }
+  #menu {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #menu > .text {
+    margin-top: 25%;
+    font-size: 45;
+    display: block;
+    color: white;
+    text-align: center;
+  }
+</style>
+
+<div id="menu" onclick="play()">
+  <span class="text">Click to start</span>
+</div>
+
+<script type="text/javascript">
+
+var vy = 0,
+    vx = 4,
+    t = 0,
+    tube_freq = 10000/1,
+    y,
+    x0,
+    player_width,
+    player_height,
+    GRAVITY = 0.5,
+    tubes = [], // tube = { x, y1, y2, width }, y1 and y2 is a y coordinate of start and end of a hole
+    particles = [], // particle = { x, y, vx, vy, color, angle, lifetime, maxlifetime }
+    lastSpawnTime = 0,
+    playing = false,
+
+    c, ctx, w, h,
+    clicked = false,
+    menu,
+    debug = false;
+
+// Sprites
+var img,
+    ready = false;
+
+window.onload = function() {
+  img = new Image();
+  img.onload = function() {
+    ready = true;
+  }
+  img.src = 'sprites.png';
+
+  menu = document.getElementById('menu');
+
+  c = document.createElement('canvas');
+  w = c.width = innerWidth;
+  h = c.height = innerHeight;
+  document.body.appendChild(c);
+  ctx = c.getContext('2d');
+  ctx.fillStyle = "rgb(20, 60, 60)";
+  ctx.fillRect(0, 0, w, h);
+
+  c.addEventListener("mousedown", function(e) {
+    clicked = true;
+  });
+  loop();
+}
+
+var play = function() {
+  vy = 0;
+  vx = 5;
+  x0 = w*.1;
+  player_width = w*.05;
+  player_height = player_width*32/48;
+  y = h/2;
+  tubes = [];
+  menu.style.display = 'none';
+  playing = true;
+}
+var gameOver = function() {
+  console.log("game over");
+  menu.style.display = 'block';
+  playing = false;
+}
+
+var loop = function() {
+  if(playing && ready) {
+    var time = Date.now();
+
+    // Update
+      if(clicked) {
+        vy = -GRAVITY*20;
+        clicked = false;
+      }
+      if(y <= 0 || y >= h) gameOver();
+
+
+      // Falling
+      vy += GRAVITY;
+      if(vy >= w/5) vy = w/5;
+      y += vy;
+
+      // Moving all tubes towards player and collisions
+      for(var i=0; i<tubes.length; i++) {
+        tubes[i].x -= vx;
+
+        // Checking collisions (playercollisionbox, tubecollisionbox)
+        if(checkCollision({ x1: x0-player_width/2, x2: x0+player_width/2, y1: y-player_width/2, y2: y+player_width/2 },
+            { x1: tubes[i].x-tubes[i].w/2, x2: tubes[i].x+tubes[i].w/2, y1: 0, y2: tubes[i].y1  }) ||
+          checkCollision({ x1: x0-player_width/2, x2: x0+player_width/2, y1: y-player_width/2, y2: y+player_width/2 },
+              { x1: tubes[i].x-tubes[i].w/2, x2: tubes[i].x+tubes[i].w/2, y1: tubes[i].y2, y2: h-tubes[i].y2 })) {
+          gameOver();
+        }
+      }
+
+      // spawning new tube
+      if((time - lastSpawnTime)*vx/tube_freq >= 1) {
+        var yy = Math.random()*(h*0.8);
+        var width = h*0.2;
+        tubes.push({ x: w-1, y1: yy, y2: yy+width, w: w*0.1 });
+        lastSpawnTime = time;
+      }
+
+    // Draw
+    particles.push({ x: x0-player_width/2, y: y,
+          vx: Math.random()*(-5)-1, vy: Math.random()*5-2.5,
+          lifetime: 0, maxlifetime: Math.round(Math.random()*200),
+          color: "rgb("+Math.floor(Math.random()*256)+", "+Math.floor(Math.random()*256)+", "+Math.floor(Math.random()*256)+")",
+          w: Math.round(Math.random()*10) });
+
+    ctx.fillStyle = "rgb(20, 60, 60)";
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.translate(x0, y);
+    ctx.rotate(Math.atan2(vy, vx)/2);
+
+    ctx.drawImage(img, 0, 0, 48, 32, -player_width/2, -player_height/2, player_width, player_height);
+
+    ctx.rotate(-Math.atan2(vy, vx)/2);
+    ctx.translate(-x0, -y);
+
+    if(debug) {
+      ctx.strokeStyle = "rgb(200, 220, 220)";
+      ctx.strokeRect(x0-player_width/2, y-player_width/2, player_width, player_height);
+    }
+
+    ctx.fillStyle = "rgb(200, 200, 40)";
+    for(var i=0; i<tubes.length; i++) {
+      var j = Math.floor(tubes[i].y1 / 16)-1;
+      for(var k=0; k<j; k++) {
+        ctx.drawImage(img, 128, 0, 64, 16, tubes[i].x-tubes[i].w/2, k*16, tubes[i].w, 16);
+      }
+      ctx.drawImage(img, 128, 32, 64, 32, tubes[i].x-tubes[i].w/2, tubes[i].y1-32, tubes[i].w, 32);
+
+      var j = Math.ceil((h - tubes[i].y2) / 16)-1;
+      for(var k=0; k<j; k++) {
+        ctx.drawImage(img, 64, 32, 64, 16, tubes[i].x-tubes[i].w/2, h - k*16, tubes[i].w, 16);
+      }
+      ctx.drawImage(img, 64, 0, 64, 32, tubes[i].x-tubes[i].w/2, tubes[i].y2, tubes[i].w, 32);
+
+      if(debug) {
+        ctx.strokeRect(tubes[i].x-tubes[i].w/2, 0, tubes[i].w, tubes[i].y1);
+        ctx.strokeRect(tubes[i].x-tubes[i].w/2, tubes[i].y2, tubes[i].w, h-tubes[i].y2);
+      }
+    }
+
+    var newparticles = [];
+    for(var i=0; i<particles.length; i++) {
+      particles[i].x += particles[i].vx;
+      particles[i].y += particles[i].vy;
+      if(!(particles[i].x < 0 || particles[i].y < 0 || particles[i].y >= h)) newparticles.push(particles[i]);
+
+      ctx.fillStyle = particles[i].color;
+      ctx.translate(particles[i].x, particles[i].y);
+      ctx.rotate(Math.sin(particles[i].lifetime/10));
+
+      ctx.fillRect(-particles[i].w/2, -particles[i].w/2, particles[i].w, particles[i].w);
+
+      ctx.rotate(-Math.sin(particles[i].lifetime/10));
+      ctx.translate(-particles[i].x, -particles[i].y);
+
+      particles[i].lifetime ++;
+    }
+    particles = newparticles;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+var checkCollision = function(cbox1, cbox2) {
+  // cbox = { x1, y1, x2, y2 }
+  var ax = (cbox2.x1 >= cbox1.x2 || cbox1.x1 >= cbox2.x2),
+      ay = (cbox2.y1 >= cbox1.y2 || cbox1.y1 >= cbox2.y2),
+      a = !ax && !ay;
+  return a;
+}
+
+</script>

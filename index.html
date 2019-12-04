@@ -15,10 +15,30 @@
     color: white;
     text-align: center;
   }
+
+  #scoreboard {
+    position: absolute;
+    width: 100%;
+    /* height: 100%; */
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #scoreboard > #score {
+    margin-top: 5%;
+    font-size: 40;
+    display: block;
+    color: white;
+    text-align: center;
+  }
 </style>
 
 <div id="menu" onclick="play()">
   <span class="text">Click to start</span>
+</div>
+
+<div id="scoreboard">
+  <span id="score">0</span>
 </div>
 
 <script type="text/javascript">
@@ -31,7 +51,7 @@ var vy = 0,
     x0,
     player_width,
     player_height,
-    GRAVITY = 0.5,
+    GRAVITY,
     tubes = [], // tube = { x, y1, y2, width }, y1 and y2 is a y coordinate of start and end of a hole
     particles = [], // particle = { x, y, vx, vy, color, angle, lifetime, maxlifetime }
     lastSpawnTime = 0,
@@ -40,7 +60,11 @@ var vy = 0,
     c, ctx, w, h,
     clicked = false,
     menu,
-    debug = false;
+    debug = false,
+    scoreboard,
+    scorespan,
+
+    score = 0;
 
 // Sprites
 var img,
@@ -54,6 +78,11 @@ window.onload = function() {
   img.src = 'sprites.png';
 
   menu = document.getElementById('menu');
+
+  scoreboard = document.getElementById('scoreboard');
+  scorespan = document.getElementById('score');
+
+
 
   c = document.createElement('canvas');
   w = c.width = innerWidth;
@@ -71,19 +100,23 @@ window.onload = function() {
 
 var play = function() {
   vy = 0;
-  vx = 5;
+  vx = w*.005;
+  GRAVITY = w*.0005;
   x0 = w*.1;
   player_width = w*.05;
   player_height = player_width*32/48;
   y = h/2;
+  score = 0;
   tubes = [];
   menu.style.display = 'none';
+  scoreboard.style.display = 'block';
   playing = true;
 }
 var gameOver = function() {
   console.log("game over");
   menu.style.display = 'block';
   playing = false;
+  scoreboard.style.display = 'none';
 }
 
 var loop = function() {
@@ -100,21 +133,29 @@ var loop = function() {
 
       // Falling
       vy += GRAVITY;
-      if(vy >= w/5) vy = w/5;
+      // if(vy >= w/5) vy = w/5;
       y += vy;
 
       // Moving all tubes towards player and collisions
+      var newtubes = [];
       for(var i=0; i<tubes.length; i++) {
         tubes[i].x -= vx;
 
         // Checking collisions (playercollisionbox, tubecollisionbox)
-        if(checkCollision({ x1: x0-player_width/2, x2: x0+player_width/2, y1: y-player_width/2, y2: y+player_width/2 },
-            { x1: tubes[i].x-tubes[i].w/2, x2: tubes[i].x+tubes[i].w/2, y1: 0, y2: tubes[i].y1  }) ||
-          checkCollision({ x1: x0-player_width/2, x2: x0+player_width/2, y1: y-player_width/2, y2: y+player_width/2 },
-              { x1: tubes[i].x-tubes[i].w/2, x2: tubes[i].x+tubes[i].w/2, y1: tubes[i].y2, y2: h-tubes[i].y2 })) {
+        if( !((x0+player_width/2 < tubes[i].x-tubes[i].w/2)
+              || (x0-player_width/2 > tubes[i].x+tubes[i].w/2))
+            && ((y-player_height/2 <= tubes[i].y1)
+              || (y+player_height/2 >= tubes[i].y2))) {
           gameOver();
         }
+
+        if(tubes[i].x < 0) {
+          score++;
+        } else {
+          newtubes.push(tubes[i]);
+        }
       }
+      tubes = newtubes;
 
       // spawning new tube
       if((time - lastSpawnTime)*vx/tube_freq >= 1) {
@@ -144,7 +185,7 @@ var loop = function() {
 
     if(debug) {
       ctx.strokeStyle = "rgb(200, 220, 220)";
-      ctx.strokeRect(x0-player_width/2, y-player_width/2, player_width, player_height);
+      ctx.strokeRect(x0-player_width/2, y-player_height/2, player_width, player_height);
     }
 
     ctx.fillStyle = "rgb(200, 200, 40)";
@@ -185,17 +226,12 @@ var loop = function() {
       particles[i].lifetime ++;
     }
     particles = newparticles;
+
+
+    scorespan.innerHTML = score;
   }
 
   requestAnimationFrame(loop);
-}
-
-var checkCollision = function(cbox1, cbox2) {
-  // cbox = { x1, y1, x2, y2 }
-  var ax = (cbox2.x1 >= cbox1.x2 || cbox1.x1 >= cbox2.x2),
-      ay = (cbox2.y1 >= cbox1.y2 || cbox1.y1 >= cbox2.y2),
-      a = !ax && !ay;
-  return a;
 }
 
 </script>
